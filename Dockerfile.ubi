@@ -38,17 +38,17 @@ RUN --mount=type=secret,id=aws_access_key_id \
         umask 077 && \
         AKI="$(cat /run/secrets/aws_access_key_id)" && \
         SAK="$(cat /run/secrets/aws_secret_access_key)" && \
-        { \
-        echo "[default]"; \
-        echo "region=us-west-2"; \
-        echo "aws_access_key_id=${AKI}"; \
-        echo "aws_secret_access_key=${SAK}"; \
-        } > /root/.aws/credentials && \
-        { \
-        echo "[default]"; \
-        echo "region=us-west-2"; \
-        echo "output=json"; \
-        } > /root/.aws/config && \
+        cat <<EOF > /root/.aws/credentials
+[default]
+region=us-west-2
+aws_access_key_id=${AKI}
+aws_secret_access_key=${SAK}
+EOF && \
+        cat <<EOF > /root/.aws/config
+[default]
+region=us-west-2
+output=json
+EOF && \
         export AWS_SHARED_CREDENTIALS_FILE=/root/.aws/credentials AWS_CONFIG_FILE=/root/.aws/config AWS_DEFAULT_REGION="us-west-2" AWS_PROFILE=default && \
         export SCCACHE_IDLE_TIMEOUT=0 && \
         export SCCACHE_LOG=debug && \
