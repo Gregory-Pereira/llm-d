@@ -68,6 +68,10 @@ releases:
     values:
     {{- if eq .Environment.Name "gke_tpu" }}
       - ms-inference-scheduling/values_tpu.yaml
+    {{- else if eq .Environment.Name "digitalocean" }}
+      - ms-inference-scheduling/digitalocean-values.yaml
+    {{- else if eq .Environment.Name "xpu" }}
+      - ms-inference-scheduling/values-xpu.yaml
     {{- else }}
       - ms-inference-scheduling/values.yaml
     {{- end }}
