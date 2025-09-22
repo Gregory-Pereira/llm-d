@@ -34,6 +34,7 @@ routing:
     create: false
 
 decode:
+  schedulerName: custom-binpack-scheduler
   create: true
   replicas: 1
   monitoring:
@@ -44,7 +45,7 @@ decode:
       interval: "30s"
   containers:
   - name: "vllm"
-    image: "ghcr.io/llm-d/llm-d-dev:pr-170"
+    image: "ghcr.io/llm-d/llm-d-dev:pr-245@sha256:7e8b456f7969ab381c9a48d2c889df8345b1e0915102d18c339d56affd2ab5bd"
     modelCommand: vllmServe
     args:
       - "--tensor-parallel-size"
@@ -98,6 +99,7 @@ decode:
     emptyDir: {}
 
 prefill:
+  schedulerName: custom-binpack-scheduler
   create: true
   replicas: 4
   monitoring:
@@ -108,7 +110,7 @@ prefill:
       interval: "30s"
   containers:
   - name: "vllm"
-    image: "ghcr.io/llm-d/llm-d-dev:pr-170"
+    image: "ghcr.io/llm-d/llm-d-dev:pr-245@sha256:7e8b456f7969ab381c9a48d2c889df8345b1e0915102d18c339d56affd2ab5bd"
     modelCommand: vllmServe
     args:
       - "--block-size"
