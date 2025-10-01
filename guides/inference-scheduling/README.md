@@ -31,9 +31,9 @@ helmfile apply -n ${NAMESPACE}
 
 **_NOTE:_** This uses Istio as the default provider, see [Gateway Options](./README.md#gateway-options) for installing with a specific provider.
 
-### Gateway and Hardware options
+### Gateway and Hardware Options
 
-#### Gateway Environments
+#### Gateway Options
 
 To see specify your gateway choice you can use the `-e <gateway option>` flag, ex:
 
