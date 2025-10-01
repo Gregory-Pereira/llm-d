@@ -11,7 +11,11 @@ environments:
   gke_tpu: &GKE_TPU
     values:
       - ../prereq/gateway-provider/common-configurations/gke_tpu.yaml
-  default:
+  xpu: &X
+    <<: *I
+  digitalocean: &DO
+    <<: *I
+  default: &DEFAULT
     <<: *I
 
 ---
@@ -71,7 +75,7 @@ releases:
     {{- else if eq .Environment.Name "digitalocean" }}
       - ms-inference-scheduling/digitalocean-values.yaml
     {{- else if eq .Environment.Name "xpu" }}
-      - ms-inference-scheduling/values-xpu.yaml
+      - ms-inference-scheduling/values_xpu.yaml
     {{- else }}
       - ms-inference-scheduling/values.yaml
     {{- end }}
