@@ -3,6 +3,7 @@ kind: Gateway
 metadata:
   name: wide-ep-inference-gateway
 spec:
+  gatewayClassName: istio
   listeners:
     - port: 80
       protocol: HTTP

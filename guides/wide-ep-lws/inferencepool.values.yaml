@@ -12,7 +12,7 @@ inferenceExtension:
       name: wide-ep-gateway-sa-metrics-reader-secret
     # Prometheus ServiceMonitor will be created when enabled for EPP metrics collection
     prometheus:
-      enabled: false
+      enabled: true
     gke:
       enable: false
   pluginsConfigFile: "custom-plugins.yaml"
@@ -40,6 +40,7 @@ inferenceExtension:
         - pluginRef: prefill-filter
         - pluginRef: random-picker
       - name: decode
+         #- name: default
         plugins:
         - pluginRef: decode-filter
         - pluginRef: random-picker
@@ -52,11 +53,10 @@ inferencePool:
   modelServers:
     matchLabels:
       llm-d.ai/inferenceServing: "true"
-      llm-d.ai/model: DeepSeek-R1-0528
-
+      llm-d.ai/model: Qwen3-235B-A22B-Instruct-2507-FP8
 istio:
   destinationRule:
-    host: deepseek-r1-epp
+    host: qwen3-235b-fp8-epp
     trafficPolicy:
       tls:
         mode: SIMPLE
