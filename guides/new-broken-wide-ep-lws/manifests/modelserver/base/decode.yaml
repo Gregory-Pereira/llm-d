@@ -1,50 +1,76 @@
 apiVersion: leaderworkerset.x-k8s.io/v1
 kind: LeaderWorkerSet
 metadata:
-  name: wide-ep-llm-d-prefill
+  name: new-broken-wide-ep-llm-d-decode
   labels:
     llm-d.ai/inferenceServing: "true"
     llm-d.ai/model: Qwen3-235B-A22B-Instruct-2507-FP8
-    llm-d.ai/role: prefill
+    llm-d.ai/role: decode
 spec:
   replicas: 1
   leaderWorkerTemplate:
-    size: 1
+    size: 2
     workerTemplate:
       metadata:
         labels:
           llm-d.ai/inferenceServing: "true"
           llm-d.ai/model: Qwen3-235B-A22B-Instruct-2507-FP8
-          llm-d.ai/role: prefill
+          llm-d.ai/role: decode
         annotations:
           k8s.v1.cni.cncf.io/networks: '[ { "name": "dhcp-network-port-1", "namespace": "llm-d-wide-ep" },                { "name": "dhcp-network-port-2", "namespace": "llm-d-wide-ep" },                { "name": "dhcp-network-port-3", "namespace": "llm-d-wide-ep" },                { "name": "dhcp-network-port-4", "namespace": "llm-d-wide-ep" },                { "name": "dhcp-network-port-5", "namespace": "llm-d-wide-ep" },                { "name": "dhcp-network-port-6", "namespace": "llm-d-wide-ep" },                { "name": "dhcp-network-port-7", "namespace": "llm-d-wide-ep" },                { "name": "dhcp-network-port-8", "namespace": "llm-d-wide-ep" }              ]'
       spec:
-        #serviceAccountName: qwen3-235b-fp8
+        #serviceAccountName: new-broken-qwen3-235b-fp8
+        initContainers:
+          - name: routing-proxy
+            args:
+              - --port=8000
+              - --vllm-port=8200
+              - --connector=nixlv2
+              - -v=5
+              - --secure-proxy=false
+            image: ghcr.io/llm-d/llm-d-routing-sidecar:v0.3.0
+            imagePullPolicy: Always
+            ports:
+              - containerPort: 8000
+            resources: {}
+            restartPolicy: Always
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
         volumes:
           - name: dshm
             emptyDir:
               medium: Memory
-              sizeLimit: 8Gi
+              sizeLimit: 16Gi
           - name: hf-cache
             persistentVolumeClaim:
               claimName: model-pvc
-          - name: rdma-discovery-script
-            configMap:
-              name: roce-hca-discovery-script
-              defaultMode: 0755
+          - hostPath:
+              path: /run/nvidia/driver/dev/gdrdrv
+              type: CharDevice
+            name: gdrdrv
           - name: podinfo
             downwardAPI:
               items:
                 - path: "annotations"
                   fieldRef:
                     fieldPath: metadata.annotations
+          - name: rdma-discovery-script
+            configMap:
+              name: roce-hca-discovery-script
+              defaultMode: 0755
         containers:
         - name: vllm-worker
-          #image: ghcr.io/llm-d/llm-d-cuda-dev:pr-274
-          image: ghcr.io/llm-d/llm-d-dev:pr-245@sha256:06ba310cd557b7762c391ac11fe0bf20307851769bcf42973608ddcc3b4b47cf
+          #image: ghcr.io/llm-d/llm-d-cuda-dev:pr-297
+          #image: ghcr.io/llm-d/llm-d-cuda-dev:pr-230@sha256:744738e06eabc2dbf53b299d01572f149a25c752d31e7dd8bb828776c509076c
           #image: ghcr.io/llm-d/llm-d-cuda-dev:pr-305@sha256:a5557be64a428817a66503bdbbc31709806aa41f45d2d64f0c4ada1bdd284814
+          image: ghcr.io/llm-d/llm-d-dev:pr-245@sha256:06ba310cd557b7762c391ac11fe0bf20307851769bcf42973608ddcc3b4b47cf
+          #image: ghcr.io/llm-d/llm-d-cuda-dev:sha-a4ce93a # remove transformers cache
+          #image: ghcr.io/llm-d/llm-d-cuda-dev:sha-c29a23f # CUDA 12.9.1
+          #image: ghcr.io/llm-d/llm-d-cuda-dev:pr-229
           #image: ghcr.io/llm-d/llm-d-cuda-dev:pr-291@sha256:8aae57dc3fe157fed864fd174951e2ecf2a0652315ff5729463bf1ffdc0dc796
           securityContext:
+            #privileged: true
             runAsUser: 0
             runAsGroup: 0
             capabilities:
@@ -61,6 +87,8 @@ spec:
               #################
               # RUN vLLM prefill worker
               #################
+              
+              ulimit -l unlimited
               sleep 20
 
               DISCOVERY_CMD="/scripts/discover.sh"
@@ -73,13 +101,13 @@ spec:
 
               KV_CONFIG_JSON="{\"kv_connector\":\"NixlConnector\",\"kv_role\":\"kv_both\",\"kv_ip\":\"${LOCAL_PRIMARY_IP}\"}"
               START_RANK=$(( ${LWS_WORKER_INDEX:-0} * DP_SIZE_LOCAL ))
-            
-              source /opt/vllm/bin/activate
-              
-              # Qwen/Qwen3-235B-A22B-Instruct-2507-FP8 \
-              exec vllm serve \
+
+              env
+
+                #Qwen/Qwen3-235B-A22B-Instruct-2507-FP8 \
+              vllm serve \
                 Qwen/Qwen3-Coder-30B-A3B-Instruct \
-                --port 8000 \
+                --port 8200 \
                 --trust-remote-code \
                 --disable-uvicorn-access-log \
                 --data-parallel-hybrid-lb \
@@ -90,16 +118,17 @@ spec:
                 --data-parallel-address ${LWS_LEADER_ADDRESS} \
                 --data-parallel-rpc-port 5555 \
                 --data-parallel-start-rank $START_RANK \
-                --gpu-memory-utilization 0.75
                 --async-scheduling \
                 --enable-eplb \
                 --eplb-config '{"window_size":"1000","step_interval":"3000","num_redundant_experts":"32","log_balancedness":"False"}' \
-                --max-model-len 32000
-                #--kv_transfer_config "${KV_CONFIG_JSON}" \
+                --compilation_config '{"cudagraph_mode": "FULL_DECODE_ONLY"}' \
+                --max-model-len 32000 \
+                --kv_transfer_config "${KV_CONFIG_JSON}"  || sleep infinity
                 #--enable-dbo \
-                #--dbo-prefill-token-threshold 32 \
+                #--dbo-decode-token-threshold 32 \
+
+              sleep infinity
           env:
-          ### BOAZ SCRIPT
           - name: REDIS_HOST
             value: "redis-service.llm-d-wide-ep.svc.cluster.local"
           - name: REQUESTED_NICS
@@ -108,20 +137,12 @@ spec:
             value: "net1"
           - name: SHARED_STORAGE_PATH
             value: "/data"
-          #### END BOAZ SCRIPT CONFIG
-          - name: HF_HUB_CACHE
-            value: /huggingface-cache
-          - name: HF_TOKEN
-            valueFrom:
-              secretKeyRef:
-                name: llm-d-hf-token
-                key: HF_TOKEN
-          - name: VLLM_FUSED_MOE_CHUNK_SIZE
-            value: "1024"
-          - name: DP_SIZE_LOCAL
-            value: "1"
+          - name: VLLM_MOE_DP_CHUNK_SIZE
+            value: "512" # vLLM default is 256
           - name: TP_SIZE
             value: "1"
+          - name: DP_SIZE_LOCAL
+            value: "4"
           - name: TRITON_LIBCUDA_PATH
             value: /usr/lib64
           - name: VLLM_SKIP_P2P_CHECK
@@ -131,15 +152,31 @@ spec:
           - name: VLLM_USE_DEEP_GEMM
             value: "1"
           - name: VLLM_ALL2ALL_BACKEND
-            value: deepep_high_throughput
+            value: deepep_low_latency
           - name: NVIDIA_GDRCOPY
             value: enabled
+          - name: NCCL_GDRCOPY_ENABLE
+            value: "1"
+              #- name: NVSHMEM_DISABLE_GDRCOPY
+              #value: "false"
+          - name: NVSHMEM_DEBUG_SUBSYS
+            value: "ALL"
           - name: NVSHMEM_DEBUG
-            value: "INFO" #TRACE
+            value: "TRACE" #TRACE
+          - name: NVSHMEM_DEBUG_FILE
+            value: "/data/nvshmem-debug-$%h-%p.txt"
+          - name: NVSHMEM_LOG_LEVEL
+            value: "INFO"
+          - name: NVSHMEM_INFO
+            value: "true"
           - name: NVSHMEM_REMOTE_TRANSPORT
             value: "ibrc"
           - name: NVSHMEM_IB_ENABLE_IBGDA
-            value: "true"
+            value: "1"
+          - name: NVSHMEM_IBGDA_SUPPORT
+            value: "1"
+          - name: NVSHMEM_USE_IBGDA
+            value: "1"
           - name: NVSHMEM_BOOTSTRAP_UID_SOCK_IFNAME
             value: "net1"
           - name: NVSHMEM_IB_ADDR_RANGE
@@ -147,51 +184,60 @@ spec:
           - name: NVSHMEM_HCA_LIST
             value: "mlx5_7:1"
           - name: NVSHMEM_ENABLE_NIC_PE_MAPPING
-            value:  "1"
+            value: "1"
           - name: NVSHMEM_IB_GID_INDEX
             value: "3"
-          - name: NVSHMEM_USE_IBGDA
-            value: "1"
-          - name: UCX_SOCKADDR_TLS_PRIORITY
-            value: "tcp"
-          - name: UCX_TLS
-            value: "rc,sm,cuda_copy,cuda_ipc"
-          - name: UCX_PROTO_INFO
-            value: "y"
-          - name: UCX_IB_GID_INDEX
-            value: "3"
-          - name: UCX_RC_MLX5_TM_ENABLE
-            value: "n"
-          - name: UCX_UD_MLX5_RX_QUEUE_LEN
-            value: "1024"
+            #- name: UCX_SOCKADDR_TLS_PRIORITY
+            #  value: "tcp"
+            #- name: UCX_TLS
+            #  value: "rc,sm,cuda_copy,cuda_ipc"
+            #- name: UCX_PROTO_INFO
+            #  value: "y"
+            #- name: UCX_IB_GID_INDEX
+            #  value: "3"
+            #- name: UCX_RC_MLX5_TM_ENABLE
+            #  value: "n" 
+            #- name: UCX_UD_MLX5_RX_QUEUE_LEN
+            #value: "1024"
           - name: GLOO_SOCKET_IFNAME
             value: "net1"
           - name: NCCL_SOCKET_IFNAME
             value: "net1"
           - name: NCCL_IB_HCA
             value: "mlx5_7:1"
-          - name: NCCL_GDRCOPY_ENABLE
-            value: "1"
+          - name: VLLM_LOGGING_LEVEL
+            value: "INFO" #DEBUG
+            #- name: VLLM_NIXL_SIDE_CHANNEL_HOST
+            #  value: "..."
+          - name: HF_HUB_CACHE
+            value: /huggingface-cache
+          - name: HF_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: llm-d-hf-token
+                key: HF_TOKEN
           ports:
-          - containerPort: 8000
-            name: metrics
-            protocol: TCP
           - containerPort: 5555
             name: rpc
             protocol: TCP
+          - containerPort: 8200
+            name: metrics
+            protocol: TCP
+              #readinessProbe:
+              #  httpGet:
+              #    path: /health
+              #    port: 8200
           resources:
             limits:
-              memory: 512Gi
-              ephemeral-storage: 64Gi
-              nvidia.com/gpu: "1"
+              ephemeral-storage: 128Gi
+              nvidia.com/gpu: "4"
               nvidia.com/roce: "1"
             requests:
               cpu: 32
+              ephemeral-storage: 128Gi
               memory: 512Gi
-              ephemeral-storage: 64Gi
-              nvidia.com/gpu: "1"
+              nvidia.com/gpu: "4"
               nvidia.com/roce: "1"
-          workingDir: /code
           volumeMounts:
             - name: dshm
               mountPath: /dev/shm
@@ -200,9 +246,12 @@ spec:
             - name: hf-cache
               mountPath: /data
               subPath: debug-logs
-            - mountPath: /etc/podnetinfo
-              name: podinfo
+            - mountPath: /dev/gdrdrv
+              name: gdrdrv
+            - name: podinfo
+              mountPath: /etc/podnetinfo
             - name: rdma-discovery-script
               mountPath: /scripts
               readOnly: true
+          workingDir: /code
 

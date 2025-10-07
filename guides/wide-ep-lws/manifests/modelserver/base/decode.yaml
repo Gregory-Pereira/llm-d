@@ -19,7 +19,7 @@ spec:
         annotations:
           k8s.v1.cni.cncf.io/networks: '[ { "name": "dhcp-network-port-1", "namespace": "llm-d-wide-ep" },                { "name": "dhcp-network-port-2", "namespace": "llm-d-wide-ep" },                { "name": "dhcp-network-port-3", "namespace": "llm-d-wide-ep" },                { "name": "dhcp-network-port-4", "namespace": "llm-d-wide-ep" },                { "name": "dhcp-network-port-5", "namespace": "llm-d-wide-ep" },                { "name": "dhcp-network-port-6", "namespace": "llm-d-wide-ep" },                { "name": "dhcp-network-port-7", "namespace": "llm-d-wide-ep" },                { "name": "dhcp-network-port-8", "namespace": "llm-d-wide-ep" }              ]'
       spec:
-        #serviceAccountName: deepseek-r1
+        #serviceAccountName: qwen3-235b-fp8
         initContainers:
           - name: routing-proxy
             args:
@@ -142,7 +142,7 @@ spec:
           - name: TP_SIZE
             value: "1"
           - name: DP_SIZE_LOCAL
-            value: "8"
+            value: "4"
           - name: TRITON_LIBCUDA_PATH
             value: /usr/lib64
           - name: VLLM_SKIP_P2P_CHECK
@@ -230,14 +230,14 @@ spec:
           resources:
             limits:
               ephemeral-storage: 128Gi
-              nvidia.com/gpu: "8"
-              nvidia.com/roce: "8"
+              nvidia.com/gpu: "4"
+              nvidia.com/roce: "1"
             requests:
               cpu: 32
               ephemeral-storage: 128Gi
               memory: 512Gi
-              nvidia.com/gpu: "8"
-              nvidia.com/roce: "8"
+              nvidia.com/gpu: "4"
+              nvidia.com/roce: "1"
           volumeMounts:
             - name: dshm
               mountPath: /dev/shm
