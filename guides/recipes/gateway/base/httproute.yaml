@@ -9,9 +9,9 @@ spec:
     name: llm-d-inference-gateway
   rules:
     - backendRefs:
-      - group: inference.networking.k8s.io
+      - group: inference.networking.x-k8s.io
         kind: InferencePool
-        name: llm-d-infpool
+        name: deepseek-r1
         port: 8000
       timeouts:
         backendRequest: 0s

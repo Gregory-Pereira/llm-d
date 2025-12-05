@@ -3,7 +3,7 @@ kind: Kustomization
 resources:
 - ../base
 - configmap.yaml
-# - telemetry.yaml # DEBUG ONLY
+- telemetry.yaml # DEBUG ONLY
 
 patches:
 - path: gateway.yaml
