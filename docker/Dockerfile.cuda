@@ -430,7 +430,6 @@ COPY scripts/warn-vllm-precompiled.sh /opt/
     # 2) install vllm from a wheel on the vllm wheels index - prod option, no flexbility
 COPY docker/scripts/cuda/runtime/install-vllm.sh /tmp/install-vllm.sh
 RUN --mount=type=cache,target=/var/cache/git \
-    chmod +x /tmp/install-vllm.sh && \
     /tmp/install-vllm.sh && \
     rm /tmp/install-vllm.sh
 
