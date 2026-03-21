@@ -40,7 +40,10 @@ kubectl cp </path/to/local/adapter> $POD_NAME:/lora-adapters/adapter-name
 
 ### Option 2: Copy adapters from HuggingFace cache
 
-In a case HuggingFace LoRA adpaters were previously loaded to the cache folder on pod, use the provided [`copy_lora_structure.sh`](copy_lora_structure.sh) script to copy LoRA adapters from the HuggingFace cache to the persistent volume. This script automatically filters out base models and only copies actual LoRA adapters.
+In a case HuggingFace LoRA adpaters were previously loaded to the cache folder on pod, use the [`copy_lora_structure`](../../../../../docker/runtime/bin/copy_lora_structure.sh) binary to copy LoRA adapters from the HuggingFace cache to the persistent volume. This script automatically filters out base models and only copies actual LoRA adapters.
+
+**NOTE**: In the dockerfiles we rename the script from `copy_lora_structure.sh` to `copy_lora_structure` for ease of calling it as a binary,
+[see cuda example](../../../../../docker/Dockerfile.cuda#L526).
 
 **How it works:**
 - Scans the HuggingFace cache directory (`/var/lib/llm-d/.hf/hub`)
@@ -58,19 +61,11 @@ In a case HuggingFace LoRA adpaters were previously loaded to the cache folder o
 POD_NAME=$(kubectl get pods -l llm-d.ai/inference-serving=true -o jsonpath='{.items[0].metadata.name}')
 ```
 
-2. Copy the script to the pod:
+2. Execute the `copy_lora_structure` script baked into the $PATH on the pod:
 
 ```bash
-kubectl cp guides/lora-serving/vllm/overlays/runtime-loaded-from-pv/copy_lora_structure.sh \
-  $POD_NAME:/tmp/copy_lora_structure.sh
+kubectl exec -it $POD_NAME -- bash -c "copy_lora_structure"
 ```
-
-3. Execute the script on the pod:
-
-```bash
-kubectl exec -it $POD_NAME -- bash -c "chmod +x /tmp/copy_lora_structure.sh && /tmp/copy_lora_structure.sh"
-```
-
 
 The script will output which adapters were copied and which models were skipped. Here is an example output:
 

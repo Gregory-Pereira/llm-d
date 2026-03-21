@@ -5,15 +5,15 @@ resources:
   - pvc.yaml
 
 patches:
-  # Set replicas to 4
+  # patch in the image that contains copy_lora_structure binary
   - target:
       kind: Deployment
       name: llm-d-model-server
     patch: |-
       - op: replace
-        path: /spec/replicas
-        value: 4
-  
+        path: /spec/template/spec/containers/0/image
+        value: ghcr.io/llm-d/llm-d-cuda-dev:sha-8f9a154 # contains copy_lora_structure binary
+
   # Configure vLLM with runtime LoRA loading
   - target:
       kind: Deployment
@@ -44,7 +44,7 @@ patches:
         path: /spec/template/spec/containers/0/env/-
         value:
           name: VLLM_LORA_RESOLVER_CACHE_DIR
-          value: "/lora-adapters"
+          value: "/var/lib/llm-d/lora-adapters"
 
   # Set LoRA cache directory
   
@@ -69,5 +69,5 @@ patches:
         path: /spec/template/spec/containers/0/volumeMounts/-
         value:
           name: lora-adapters
-          mountPath: /lora-adapters
+          mountPath: /var/lib/llm-d/lora-adapters
 

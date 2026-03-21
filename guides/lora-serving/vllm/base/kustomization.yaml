@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ../../../recipes/vllm/standard
+  - ../../../recipes/vllm/cuda
 
 patches:
   - patch: |-
@@ -14,3 +14,10 @@ patches:
           metadata:
             labels:
               llm-d.ai/guide: "lora-serving"
+  - target:
+      kind: Deployment
+      name: llm-d-model-server
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 4

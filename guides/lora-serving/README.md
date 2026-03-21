@@ -74,6 +74,7 @@ This deploys:
   - `topic-control` — `nvidia/llama-3.1-nemoguard-8b-topic-control`
   - `fact-generation` — `algoprog/fact-generation-llama-3.1-8b-instruct-lora`
   - `finance` — `k0xff/llama-3-8b-sujet-finance-lora`
+  - **Note**: 4 Replicas of TP=1 was chosen for this demo, but this is adjustable as desired from the [base kustomization.yaml](./vllm/base/kustomization.yaml).
 - An InferencePool with the [GIE endpoint picker](https://github.com/kubernetes-sigs/gateway-api-inference-extension)
 
 <!-- TAB:Runtime-Loaded -->
