@@ -56,6 +56,16 @@ if [[ -z "${NAMESPACE}" ]]; then
   NAMESPACE="${NAMESPACE:-default}"
 fi
 
+# ── Cleanup trap ───────────────────────────────────────────────────────
+PF_PIDS=()
+cleanup() {
+  for pid in "${PF_PIDS[@]}"; do
+    kill "${pid}" 2>/dev/null || true
+    wait "${pid}" 2>/dev/null || true
+  done
+}
+trap cleanup EXIT
+
 # ── Helpers ─────────────────────────────────────────────────────────────
 format_response() {
   local body="$1"
@@ -130,6 +140,7 @@ for POD in ${PODS}; do
   echo "═══════════════════════════════════════════════════════════════"
   kubectl port-forward -n "${NAMESPACE}" "${POD}" "${LOCAL_PORT}:8000" > /dev/null 2>&1 &
   PF_PID=$!
+  PF_PIDS+=("${PF_PID}")
 
   if ! wait_for_port_forward; then
     kill "${PF_PID}" 2>/dev/null || true
