@@ -95,6 +95,8 @@ jobs:
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3  # v1.12.0
         with:
           cluster_name: helmfile-dry-run
+          node_image: kindest/node:v1.32.5  # 1.32+ required for DRA (resource.k8s.io/v1)
+          version: v0.29.0
           wait: 120s
 
       - name: Install Gateway API and GAIE CRDs
@@ -143,12 +145,15 @@ jobs:
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
             echo "--- creating namespaces ---"
-            # Extract namespaces from rendered manifests. Uses grep instead of yq
-            # because yq skips documents whose CRD is not installed.
-            grep -E '^\s+namespace:\s' /tmp/rendered.yaml \
-              | awk '{print $2}' | tr -d '"' | sort -u \
-              | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
-              | kubectl apply -f -
+            # Collect namespaces from helmfile release definitions and from the
+            # rendered manifests (some resources reference namespaces outside the
+            # release namespace, e.g. monitoring).
+            {
+              helmfile list -e "$env_name" 2>/dev/null | awk 'NR>1 {print $2}'
+              grep -E '^\s+namespace:\s' /tmp/rendered.yaml | awk '{print $2}' | tr -d '"'"'"
+            } | sort -u | while read -r ns; do
+                kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
+              done
             echo "--- kubectl apply --dry-run=server ---"
             kubectl apply --dry-run=server -f /tmp/rendered.yaml
             echo "PASS: inference-scheduling / $env_name"
@@ -171,6 +176,8 @@ jobs:
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3  # v1.12.0
         with:
           cluster_name: helmfile-dry-run
+          node_image: kindest/node:v1.32.5  # 1.32+ required for DRA (resource.k8s.io/v1)
+          version: v0.29.0
           wait: 120s
 
       - name: Install Gateway API and GAIE CRDs
@@ -219,12 +226,15 @@ jobs:
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
             echo "--- creating namespaces ---"
-            # Extract namespaces from rendered manifests. Uses grep instead of yq
-            # because yq skips documents whose CRD is not installed.
-            grep -E '^\s+namespace:\s' /tmp/rendered.yaml \
-              | awk '{print $2}' | tr -d '"' | sort -u \
-              | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
-              | kubectl apply -f -
+            # Collect namespaces from helmfile release definitions and from the
+            # rendered manifests (some resources reference namespaces outside the
+            # release namespace, e.g. monitoring).
+            {
+              helmfile list -e "$env_name" 2>/dev/null | awk 'NR>1 {print $2}'
+              grep -E '^\s+namespace:\s' /tmp/rendered.yaml | awk '{print $2}' | tr -d '"'"'"
+            } | sort -u | while read -r ns; do
+                kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
+              done
             echo "--- kubectl apply --dry-run=server ---"
             kubectl apply --dry-run=server -f /tmp/rendered.yaml
             echo "PASS: pd-disaggregation / $env_name"
@@ -247,6 +257,8 @@ jobs:
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3  # v1.12.0
         with:
           cluster_name: helmfile-dry-run
+          node_image: kindest/node:v1.32.5  # 1.32+ required for DRA (resource.k8s.io/v1)
+          version: v0.29.0
           wait: 120s
 
       - name: Install Gateway API and GAIE CRDs
@@ -295,12 +307,15 @@ jobs:
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
             echo "--- creating namespaces ---"
-            # Extract namespaces from rendered manifests. Uses grep instead of yq
-            # because yq skips documents whose CRD is not installed.
-            grep -E '^\s+namespace:\s' /tmp/rendered.yaml \
-              | awk '{print $2}' | tr -d '"' | sort -u \
-              | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
-              | kubectl apply -f -
+            # Collect namespaces from helmfile release definitions and from the
+            # rendered manifests (some resources reference namespaces outside the
+            # release namespace, e.g. monitoring).
+            {
+              helmfile list -e "$env_name" 2>/dev/null | awk 'NR>1 {print $2}'
+              grep -E '^\s+namespace:\s' /tmp/rendered.yaml | awk '{print $2}' | tr -d '"'"'"
+            } | sort -u | while read -r ns; do
+                kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
+              done
             echo "--- kubectl apply --dry-run=server ---"
             kubectl apply --dry-run=server -f /tmp/rendered.yaml
             echo "PASS: precise-prefix-cache-aware / $env_name"
@@ -323,6 +338,8 @@ jobs:
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3  # v1.12.0
         with:
           cluster_name: helmfile-dry-run
+          node_image: kindest/node:v1.32.5  # 1.32+ required for DRA (resource.k8s.io/v1)
+          version: v0.29.0
           wait: 120s
 
       - name: Install Gateway API and GAIE CRDs
@@ -371,12 +388,15 @@ jobs:
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
             echo "--- creating namespaces ---"
-            # Extract namespaces from rendered manifests. Uses grep instead of yq
-            # because yq skips documents whose CRD is not installed.
-            grep -E '^\s+namespace:\s' /tmp/rendered.yaml \
-              | awk '{print $2}' | tr -d '"' | sort -u \
-              | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
-              | kubectl apply -f -
+            # Collect namespaces from helmfile release definitions and from the
+            # rendered manifests (some resources reference namespaces outside the
+            # release namespace, e.g. monitoring).
+            {
+              helmfile list -e "$env_name" 2>/dev/null | awk 'NR>1 {print $2}'
+              grep -E '^\s+namespace:\s' /tmp/rendered.yaml | awk '{print $2}' | tr -d '"'"'"
+            } | sort -u | while read -r ns; do
+                kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
+              done
             echo "--- kubectl apply --dry-run=server ---"
             kubectl apply --dry-run=server -f /tmp/rendered.yaml
             echo "PASS: simulated-accelerators / $env_name"
@@ -399,6 +419,8 @@ jobs:
         uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3  # v1.12.0
         with:
           cluster_name: helmfile-dry-run
+          node_image: kindest/node:v1.32.5  # 1.32+ required for DRA (resource.k8s.io/v1)
+          version: v0.29.0
           wait: 120s
 
       - name: Install Gateway API and GAIE CRDs
@@ -462,12 +484,15 @@ jobs:
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
             echo "--- creating namespaces ---"
-            # Extract namespaces from rendered manifests. Uses grep instead of yq
-            # because yq skips documents whose CRD is not installed.
-            grep -E '^\s+namespace:\s' /tmp/rendered.yaml \
-              | awk '{print $2}' | tr -d '"' | sort -u \
-              | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
-              | kubectl apply -f -
+            # Collect namespaces from helmfile release definitions and from the
+            # rendered manifests (some resources reference namespaces outside the
+            # release namespace, e.g. monitoring).
+            {
+              helmfile list -e "$env_name" 2>/dev/null | awk 'NR>1 {print $2}'
+              grep -E '^\s+namespace:\s' /tmp/rendered.yaml | awk '{print $2}' | tr -d '"'"'"
+            } | sort -u | while read -r ns; do
+                kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
+              done
             echo "--- kubectl apply --dry-run=server ---"
             kubectl apply --dry-run=server -f /tmp/rendered.yaml
             echo "PASS: workload-autoscaling / $env_name"
