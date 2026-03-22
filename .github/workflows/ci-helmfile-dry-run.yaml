@@ -1,0 +1,216 @@
+name: CI Helmfile Dry Run
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - guides/**/helmfile.yaml.gotmpl
+      - guides/**/values*.yaml
+      - guides/prereq/**
+      - .github/workflows/ci-helmfile-dry-run.yaml
+  push:
+    branches: [main]
+    paths:
+      - guides/**/helmfile.yaml.gotmpl
+      - guides/**/values*.yaml
+      - guides/prereq/**
+      - .github/workflows/ci-helmfile-dry-run.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      inference-scheduling: ${{ steps.filter.outputs.inference-scheduling }}
+      pd-disaggregation: ${{ steps.filter.outputs.pd-disaggregation }}
+      precise-prefix-cache-aware: ${{ steps.filter.outputs.precise-prefix-cache-aware }}
+      simulated-accelerators: ${{ steps.filter.outputs.simulated-accelerators }}
+      workload-autoscaling: ${{ steps.filter.outputs.workload-autoscaling }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            inference-scheduling:
+              - .github/workflows/ci-helmfile-dry-run.yaml
+              - guides/prereq/client-setup/install-deps.sh
+              - guides/prereq/gateway-provider/common-configurations/**
+              - guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh
+              - guides/prereq/gateway-provider/*.helmfile.yaml
+              - guides/inference-scheduling/**
+            pd-disaggregation:
+              - .github/workflows/ci-helmfile-dry-run.yaml
+              - guides/prereq/client-setup/install-deps.sh
+              - guides/prereq/gateway-provider/common-configurations/**
+              - guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh
+              - guides/prereq/gateway-provider/*.helmfile.yaml
+              - guides/pd-disaggregation/**
+            precise-prefix-cache-aware:
+              - .github/workflows/ci-helmfile-dry-run.yaml
+              - guides/prereq/client-setup/install-deps.sh
+              - guides/prereq/gateway-provider/common-configurations/**
+              - guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh
+              - guides/prereq/gateway-provider/*.helmfile.yaml
+              - guides/precise-prefix-cache-aware/**
+            simulated-accelerators:
+              - .github/workflows/ci-helmfile-dry-run.yaml
+              - guides/prereq/client-setup/install-deps.sh
+              - guides/prereq/gateway-provider/common-configurations/**
+              - guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh
+              - guides/prereq/gateway-provider/*.helmfile.yaml
+              - guides/simulated-accelerators/**
+            workload-autoscaling:
+              - .github/workflows/ci-helmfile-dry-run.yaml
+              - guides/prereq/client-setup/install-deps.sh
+              - guides/prereq/gateway-provider/common-configurations/**
+              - guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh
+              - guides/prereq/gateway-provider/*.helmfile.yaml
+              - guides/workload-autoscaling/**
+
+  dry-run:
+    needs: detect-changes
+    if: >-
+      needs.detect-changes.outputs.inference-scheduling == 'true' ||
+      needs.detect-changes.outputs.pd-disaggregation == 'true' ||
+      needs.detect-changes.outputs.precise-prefix-cache-aware == 'true' ||
+      needs.detect-changes.outputs.simulated-accelerators == 'true' ||
+      needs.detect-changes.outputs.workload-autoscaling == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Install client dependencies
+        run: guides/prereq/client-setup/install-deps.sh
+
+      - name: Create kind cluster
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3  # v1.12.0
+        with:
+          cluster_name: helmfile-dry-run
+          wait: 120s
+
+      - name: Install Gateway API and GAIE CRDs
+        run: guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh
+
+      - name: Install gateway providers
+        run: |
+          cd guides/prereq/gateway-provider
+          for f in *.helmfile.yaml; do
+            echo "=== Installing gateway provider: $f ==="
+            helmfile apply -f "$f"
+          done
+
+      - name: Wait for gateway control planes
+        run: |
+          for ns in istio-system agentgateway-system; do
+            if kubectl get namespace "$ns" &>/dev/null; then
+              echo "Waiting for pods in $ns..."
+              kubectl wait --for=condition=ready pod \
+                --selector=app.kubernetes.io/managed-by=Helm \
+                --namespace "$ns" \
+                --timeout=300s || true
+            fi
+          done
+
+      # Create a dummy TLS cert so workload-autoscaling's readFile for
+      # prometheus-ca.crt succeeds during helmfile template.
+      - name: Create dummy prometheus CA cert
+        run: |
+          openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
+            -keyout /dev/null -out /tmp/prometheus-ca.crt -days 1 -nodes \
+            -subj "/CN=dummy-ca" 2>/dev/null
+
+      - name: Dry-run inference-scheduling
+        if: needs.detect-changes.outputs.inference-scheduling == 'true'
+        run: |
+          cd guides/inference-scheduling
+          envs=$(yq -r '.environments | keys | .[]' helmfile.yaml.gotmpl)
+          for env_name in $envs; do
+            echo ""
+            echo "========================================"
+            echo "inference-scheduling: environment=$env_name"
+            echo "========================================"
+            echo "--- helmfile template ---"
+            helmfile template -e "$env_name" > /tmp/rendered.yaml
+            echo "--- kubectl apply --dry-run=server ---"
+            kubectl apply --dry-run=server -f /tmp/rendered.yaml
+            echo "PASS: inference-scheduling / $env_name"
+          done
+
+      - name: Dry-run pd-disaggregation
+        if: needs.detect-changes.outputs.pd-disaggregation == 'true'
+        run: |
+          cd guides/pd-disaggregation
+          envs=$(yq -r '.environments | keys | .[]' helmfile.yaml.gotmpl)
+          for env_name in $envs; do
+            echo ""
+            echo "========================================"
+            echo "pd-disaggregation: environment=$env_name"
+            echo "========================================"
+            echo "--- helmfile template ---"
+            helmfile template -e "$env_name" > /tmp/rendered.yaml
+            echo "--- kubectl apply --dry-run=server ---"
+            kubectl apply --dry-run=server -f /tmp/rendered.yaml
+            echo "PASS: pd-disaggregation / $env_name"
+          done
+
+      - name: Dry-run precise-prefix-cache-aware
+        if: needs.detect-changes.outputs.precise-prefix-cache-aware == 'true'
+        run: |
+          cd guides/precise-prefix-cache-aware
+          envs=$(yq -r '.environments | keys | .[]' helmfile.yaml.gotmpl)
+          for env_name in $envs; do
+            echo ""
+            echo "========================================"
+            echo "precise-prefix-cache-aware: environment=$env_name"
+            echo "========================================"
+            echo "--- helmfile template ---"
+            helmfile template -e "$env_name" > /tmp/rendered.yaml
+            echo "--- kubectl apply --dry-run=server ---"
+            kubectl apply --dry-run=server -f /tmp/rendered.yaml
+            echo "PASS: precise-prefix-cache-aware / $env_name"
+          done
+
+      - name: Dry-run simulated-accelerators
+        if: needs.detect-changes.outputs.simulated-accelerators == 'true'
+        run: |
+          cd guides/simulated-accelerators
+          envs=$(yq -r '.environments | keys | .[]' helmfile.yaml.gotmpl)
+          for env_name in $envs; do
+            echo ""
+            echo "========================================"
+            echo "simulated-accelerators: environment=$env_name"
+            echo "========================================"
+            echo "--- helmfile template ---"
+            helmfile template -e "$env_name" > /tmp/rendered.yaml
+            echo "--- kubectl apply --dry-run=server ---"
+            kubectl apply --dry-run=server -f /tmp/rendered.yaml
+            echo "PASS: simulated-accelerators / $env_name"
+          done
+
+      - name: Dry-run workload-autoscaling
+        if: needs.detect-changes.outputs.workload-autoscaling == 'true'
+        env:
+          TMPDIR: /tmp
+        run: |
+          cd guides/workload-autoscaling
+          envs=$(yq -r '.environments | keys | .[]' helmfile.yaml.gotmpl)
+          for env_name in $envs; do
+            echo ""
+            echo "========================================"
+            echo "workload-autoscaling: environment=$env_name"
+            echo "========================================"
+            echo "--- helmfile template ---"
+            helmfile template -e "$env_name" > /tmp/rendered.yaml
+            echo "--- kubectl apply --dry-run=server ---"
+            kubectl apply --dry-run=server -f /tmp/rendered.yaml
+            echo "PASS: workload-autoscaling / $env_name"
+          done
