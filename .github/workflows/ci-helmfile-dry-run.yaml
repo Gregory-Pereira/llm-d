@@ -122,7 +122,7 @@ jobs:
 
       # Create a dummy TLS cert so workload-autoscaling's readFile for
       # prometheus-ca.crt succeeds during helmfile template.
-      - name: Create dummy prometheus CA cert
+      - name: Create dummy prometheus CA cert for WVA guide
         run: |
           openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
             -keyout /dev/null -out /tmp/prometheus-ca.crt -days 1 -nodes \
