@@ -126,6 +126,9 @@ jobs:
       - name: Install monitoring CRDs
         run: docs/monitoring/scripts/install-prometheus-grafana.sh --crds-only
 
+      - name: Install GKE monitoring CRDs
+        run: .github/scripts/install-gke-monitoring-crds.sh
+
       - name: Dry-run all environments
         run: |
           cd guides/inference-scheduling
@@ -195,6 +198,9 @@ jobs:
 
       - name: Install monitoring CRDs
         run: docs/monitoring/scripts/install-prometheus-grafana.sh --crds-only
+
+      - name: Install GKE monitoring CRDs
+        run: .github/scripts/install-gke-monitoring-crds.sh
 
       - name: Dry-run all environments
         run: |
@@ -266,6 +272,9 @@ jobs:
       - name: Install monitoring CRDs
         run: docs/monitoring/scripts/install-prometheus-grafana.sh --crds-only
 
+      - name: Install GKE monitoring CRDs
+        run: .github/scripts/install-gke-monitoring-crds.sh
+
       - name: Dry-run all environments
         run: |
           cd guides/precise-prefix-cache-aware
@@ -335,6 +344,9 @@ jobs:
 
       - name: Install monitoring CRDs
         run: docs/monitoring/scripts/install-prometheus-grafana.sh --crds-only
+
+      - name: Install GKE monitoring CRDs
+        run: .github/scripts/install-gke-monitoring-crds.sh
 
       - name: Dry-run all environments
         run: |
