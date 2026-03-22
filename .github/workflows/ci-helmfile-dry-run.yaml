@@ -132,7 +132,9 @@ jobs:
         if: needs.detect-changes.outputs.inference-scheduling == 'true'
         run: |
           cd guides/inference-scheduling
-          envs=$(yq -r '.environments | keys | .[]' helmfile.yaml.gotmpl)
+          # Extract only the YAML before the --- separator; the rest contains
+          # Go template syntax that yq cannot parse.
+          envs=$(awk '/^---/{exit} {print}' helmfile.yaml.gotmpl | yq -r '.environments | keys | .[]')
           for env_name in $envs; do
             echo ""
             echo "========================================"
@@ -149,7 +151,9 @@ jobs:
         if: needs.detect-changes.outputs.pd-disaggregation == 'true'
         run: |
           cd guides/pd-disaggregation
-          envs=$(yq -r '.environments | keys | .[]' helmfile.yaml.gotmpl)
+          # Extract only the YAML before the --- separator; the rest contains
+          # Go template syntax that yq cannot parse.
+          envs=$(awk '/^---/{exit} {print}' helmfile.yaml.gotmpl | yq -r '.environments | keys | .[]')
           for env_name in $envs; do
             echo ""
             echo "========================================"
@@ -166,7 +170,9 @@ jobs:
         if: needs.detect-changes.outputs.precise-prefix-cache-aware == 'true'
         run: |
           cd guides/precise-prefix-cache-aware
-          envs=$(yq -r '.environments | keys | .[]' helmfile.yaml.gotmpl)
+          # Extract only the YAML before the --- separator; the rest contains
+          # Go template syntax that yq cannot parse.
+          envs=$(awk '/^---/{exit} {print}' helmfile.yaml.gotmpl | yq -r '.environments | keys | .[]')
           for env_name in $envs; do
             echo ""
             echo "========================================"
@@ -183,7 +189,9 @@ jobs:
         if: needs.detect-changes.outputs.simulated-accelerators == 'true'
         run: |
           cd guides/simulated-accelerators
-          envs=$(yq -r '.environments | keys | .[]' helmfile.yaml.gotmpl)
+          # Extract only the YAML before the --- separator; the rest contains
+          # Go template syntax that yq cannot parse.
+          envs=$(awk '/^---/{exit} {print}' helmfile.yaml.gotmpl | yq -r '.environments | keys | .[]')
           for env_name in $envs; do
             echo ""
             echo "========================================"
@@ -202,7 +210,9 @@ jobs:
           TMPDIR: /tmp
         run: |
           cd guides/workload-autoscaling
-          envs=$(yq -r '.environments | keys | .[]' helmfile.yaml.gotmpl)
+          # Extract only the YAML before the --- separator; the rest contains
+          # Go template syntax that yq cannot parse.
+          envs=$(awk '/^---/{exit} {print}' helmfile.yaml.gotmpl | yq -r '.environments | keys | .[]')
           for env_name in $envs; do
             echo ""
             echo "========================================"
