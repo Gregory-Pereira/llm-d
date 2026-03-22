@@ -98,7 +98,7 @@ jobs:
           wait: 120s
 
       - name: Install Gateway API and GAIE CRDs
-        run: guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh
+        run: guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh > /dev/null
 
       - name: Install gateway providers
         run: |
@@ -108,7 +108,7 @@ jobs:
             # overwrite the agentgateway installation.
             [[ "$f" == "kgateway.helmfile.yaml" ]] && continue
             echo "=== Installing gateway provider: $f ==="
-            helmfile apply -f "$f"
+            helmfile apply -f "$f" > /dev/null
           done
 
       - name: Wait for gateway control planes
@@ -143,8 +143,10 @@ jobs:
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
             echo "--- creating namespaces ---"
-            yq -r 'select(.metadata.namespace) | .metadata.namespace' /tmp/rendered.yaml \
-              | grep -v '^---$' | sort -u \
+            # Extract namespaces from rendered manifests. Uses grep instead of yq
+            # because yq skips documents whose CRD is not installed.
+            grep -E '^\s+namespace:\s' /tmp/rendered.yaml \
+              | awk '{print $2}' | tr -d '"' | sort -u \
               | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
               | kubectl apply -f -
             echo "--- kubectl apply --dry-run=server ---"
@@ -172,7 +174,7 @@ jobs:
           wait: 120s
 
       - name: Install Gateway API and GAIE CRDs
-        run: guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh
+        run: guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh > /dev/null
 
       - name: Install gateway providers
         run: |
@@ -182,7 +184,7 @@ jobs:
             # overwrite the agentgateway installation.
             [[ "$f" == "kgateway.helmfile.yaml" ]] && continue
             echo "=== Installing gateway provider: $f ==="
-            helmfile apply -f "$f"
+            helmfile apply -f "$f" > /dev/null
           done
 
       - name: Wait for gateway control planes
@@ -217,8 +219,10 @@ jobs:
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
             echo "--- creating namespaces ---"
-            yq -r 'select(.metadata.namespace) | .metadata.namespace' /tmp/rendered.yaml \
-              | grep -v '^---$' | sort -u \
+            # Extract namespaces from rendered manifests. Uses grep instead of yq
+            # because yq skips documents whose CRD is not installed.
+            grep -E '^\s+namespace:\s' /tmp/rendered.yaml \
+              | awk '{print $2}' | tr -d '"' | sort -u \
               | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
               | kubectl apply -f -
             echo "--- kubectl apply --dry-run=server ---"
@@ -246,7 +250,7 @@ jobs:
           wait: 120s
 
       - name: Install Gateway API and GAIE CRDs
-        run: guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh
+        run: guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh > /dev/null
 
       - name: Install gateway providers
         run: |
@@ -256,7 +260,7 @@ jobs:
             # overwrite the agentgateway installation.
             [[ "$f" == "kgateway.helmfile.yaml" ]] && continue
             echo "=== Installing gateway provider: $f ==="
-            helmfile apply -f "$f"
+            helmfile apply -f "$f" > /dev/null
           done
 
       - name: Wait for gateway control planes
@@ -291,8 +295,10 @@ jobs:
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
             echo "--- creating namespaces ---"
-            yq -r 'select(.metadata.namespace) | .metadata.namespace' /tmp/rendered.yaml \
-              | grep -v '^---$' | sort -u \
+            # Extract namespaces from rendered manifests. Uses grep instead of yq
+            # because yq skips documents whose CRD is not installed.
+            grep -E '^\s+namespace:\s' /tmp/rendered.yaml \
+              | awk '{print $2}' | tr -d '"' | sort -u \
               | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
               | kubectl apply -f -
             echo "--- kubectl apply --dry-run=server ---"
@@ -320,7 +326,7 @@ jobs:
           wait: 120s
 
       - name: Install Gateway API and GAIE CRDs
-        run: guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh
+        run: guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh > /dev/null
 
       - name: Install gateway providers
         run: |
@@ -330,7 +336,7 @@ jobs:
             # overwrite the agentgateway installation.
             [[ "$f" == "kgateway.helmfile.yaml" ]] && continue
             echo "=== Installing gateway provider: $f ==="
-            helmfile apply -f "$f"
+            helmfile apply -f "$f" > /dev/null
           done
 
       - name: Wait for gateway control planes
@@ -365,8 +371,10 @@ jobs:
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
             echo "--- creating namespaces ---"
-            yq -r 'select(.metadata.namespace) | .metadata.namespace' /tmp/rendered.yaml \
-              | grep -v '^---$' | sort -u \
+            # Extract namespaces from rendered manifests. Uses grep instead of yq
+            # because yq skips documents whose CRD is not installed.
+            grep -E '^\s+namespace:\s' /tmp/rendered.yaml \
+              | awk '{print $2}' | tr -d '"' | sort -u \
               | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
               | kubectl apply -f -
             echo "--- kubectl apply --dry-run=server ---"
@@ -394,7 +402,7 @@ jobs:
           wait: 120s
 
       - name: Install Gateway API and GAIE CRDs
-        run: guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh
+        run: guides/prereq/gateway-provider/install-gateway-provider-dependencies.sh > /dev/null
 
       - name: Install gateway providers
         run: |
@@ -404,7 +412,7 @@ jobs:
             # overwrite the agentgateway installation.
             [[ "$f" == "kgateway.helmfile.yaml" ]] && continue
             echo "=== Installing gateway provider: $f ==="
-            helmfile apply -f "$f"
+            helmfile apply -f "$f" > /dev/null
           done
 
       - name: Wait for gateway control planes
@@ -418,6 +426,17 @@ jobs:
                 --timeout=300s || true
             fi
           done
+
+      - name: Install monitoring CRDs
+        run: docs/monitoring/scripts/install-prometheus-grafana.sh --crds-only
+
+      - name: Install GKE CRDs
+        run: .github/scripts/install-gke-crds.sh
+
+      - name: Install WVA CRDs
+        run: |
+          helm show crds oci://ghcr.io/llm-d/workload-variant-autoscaler --version 0.5.1 \
+            | kubectl apply --server-side --validate=false -f -
 
       # Create a dummy TLS cert so workload-autoscaling's readFile for
       # prometheus-ca.crt succeeds during helmfile template.
@@ -443,8 +462,10 @@ jobs:
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
             echo "--- creating namespaces ---"
-            yq -r 'select(.metadata.namespace) | .metadata.namespace' /tmp/rendered.yaml \
-              | grep -v '^---$' | sort -u \
+            # Extract namespaces from rendered manifests. Uses grep instead of yq
+            # because yq skips documents whose CRD is not installed.
+            grep -E '^\s+namespace:\s' /tmp/rendered.yaml \
+              | awk '{print $2}' | tr -d '"' | sort -u \
               | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
               | kubectl apply -f -
             echo "--- kubectl apply --dry-run=server ---"
