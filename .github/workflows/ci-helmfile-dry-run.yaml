@@ -139,6 +139,10 @@ jobs:
             echo "========================================"
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
+            echo "--- creating namespaces ---"
+            yq -r 'select(.metadata.namespace) | .metadata.namespace' /tmp/rendered.yaml \
+              | sort -u | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
+              | kubectl apply -f -
             echo "--- kubectl apply --dry-run=server ---"
             kubectl apply --dry-run=server -f /tmp/rendered.yaml
             echo "PASS: inference-scheduling / $env_name"
@@ -205,6 +209,10 @@ jobs:
             echo "========================================"
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
+            echo "--- creating namespaces ---"
+            yq -r 'select(.metadata.namespace) | .metadata.namespace' /tmp/rendered.yaml \
+              | sort -u | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
+              | kubectl apply -f -
             echo "--- kubectl apply --dry-run=server ---"
             kubectl apply --dry-run=server -f /tmp/rendered.yaml
             echo "PASS: pd-disaggregation / $env_name"
@@ -271,6 +279,10 @@ jobs:
             echo "========================================"
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
+            echo "--- creating namespaces ---"
+            yq -r 'select(.metadata.namespace) | .metadata.namespace' /tmp/rendered.yaml \
+              | sort -u | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
+              | kubectl apply -f -
             echo "--- kubectl apply --dry-run=server ---"
             kubectl apply --dry-run=server -f /tmp/rendered.yaml
             echo "PASS: precise-prefix-cache-aware / $env_name"
@@ -337,6 +349,10 @@ jobs:
             echo "========================================"
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
+            echo "--- creating namespaces ---"
+            yq -r 'select(.metadata.namespace) | .metadata.namespace' /tmp/rendered.yaml \
+              | sort -u | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
+              | kubectl apply -f -
             echo "--- kubectl apply --dry-run=server ---"
             kubectl apply --dry-run=server -f /tmp/rendered.yaml
             echo "PASS: simulated-accelerators / $env_name"
@@ -410,6 +426,10 @@ jobs:
             echo "========================================"
             echo "--- helmfile template ---"
             helmfile template -e "$env_name" > /tmp/rendered.yaml
+            echo "--- creating namespaces ---"
+            yq -r 'select(.metadata.namespace) | .metadata.namespace' /tmp/rendered.yaml \
+              | sort -u | xargs -I{} kubectl create namespace {} --dry-run=client -o yaml \
+              | kubectl apply -f -
             echo "--- kubectl apply --dry-run=server ---"
             kubectl apply --dry-run=server -f /tmp/rendered.yaml
             echo "PASS: workload-autoscaling / $env_name"
