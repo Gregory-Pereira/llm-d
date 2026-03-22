@@ -104,6 +104,9 @@ jobs:
         run: |
           cd guides/prereq/gateway-provider
           for f in *.helmfile.yaml; do
+            # Skip kgateway - it is deprecated and its older CRDs would
+            # overwrite the agentgateway installation.
+            [[ "$f" == "kgateway.helmfile.yaml" ]] && continue
             echo "=== Installing gateway provider: $f ==="
             helmfile apply -f "$f"
           done
