@@ -1,0 +1,168 @@
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  name: wide-ep-lws-nvidia-gpu-vllm-kimi-k3-decode
+  labels:
+    llm-d.ai/model: Kimi-K3
+    llm-d.ai/role: decode
+spec:
+  replicas: ${DECODE_REPLICAS}
+  leaderWorkerTemplate:
+    size: ${DECODE_SIZE}
+    workerTemplate:
+      metadata:
+        labels:
+          llm-d.ai/inference-serving: "true"
+          llm-d.ai/guide: "wide-ep-lws"
+          llm-d.ai/accelerator-variant: "gpu"
+          llm-d.ai/accelerator-vendor: "nvidia"
+          llm-d.ai/model: Kimi-K3
+          llm-d.ai/role: decode
+      spec:
+        serviceAccountName: kimi-k3
+        initContainers:
+          - name: routing-proxy
+            args:
+              - --port=8000
+              - --vllm-port=8200
+              - --kv-connector=nixlv2
+              - --zap-log-level=1
+              - --secure-proxy=false
+            image: ghcr.io/llm-d/llm-d-router-disagg-sidecar:main
+            imagePullPolicy: Always
+            ports:
+              - containerPort: 8000
+                name: http
+                protocol: TCP
+            restartPolicy: Always
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+        volumes:
+          - name: dshm
+            emptyDir:
+              medium: Memory
+              sizeLimit: 256Gi
+          - name: hf-cache
+            emptyDir: {}
+          - name: jit-cache
+            emptyDir: {}
+        containers:
+          - name: vllm
+            image: vllm/vllm-openai:nightly-cb8104839c141609d99f1254459ef3a4f1bd4263
+            securityContext:
+              capabilities:
+                add:
+                  - IPC_LOCK
+                  - SYS_RAWIO
+              runAsGroup: 0
+              runAsUser: 0
+            imagePullPolicy: Always
+            command:
+              - /bin/bash
+              - -c
+            args:
+              - |-
+                find /dev/shm -type f -delete
+
+                HEADLESS_FLAG=""
+                if [ "${LWS_WORKER_INDEX:-0}" -ne 0 ]; then
+                  HEADLESS_FLAG="--headless"
+                fi
+
+                exec vllm serve moonshotai/Kimi-K3 \
+                  --trust-remote-code \
+                  --port 8200 \
+                  --disable-access-log-for-endpoints=/health,/metrics \
+                  --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}' \
+                  --tensor-parallel-size 16 \
+                  --enable-expert-parallel \
+                  --nnodes 2 \
+                  --node-rank ${LWS_WORKER_INDEX:-0} \
+                  --master-addr ${LWS_LEADER_ADDRESS} \
+                  ${HEADLESS_FLAG} \
+                  --no-enable-prefix-caching \
+                  --no-disable-hybrid-kv-cache-manager \
+                  --gpu-memory-utilization 0.97 \
+                  --max-num-seqs 5 \
+                  --max-model-len ${MAX_MODEL_LEN:-30720} \
+                  --moe-backend marlin \
+                  --disable-custom-all-reduce \
+                  --no-enable-flashinfer-autotune \
+                  --max-num-batched-tokens 4096 \
+                  --attention-backend FLASHMLA \
+                  --enable-auto-tool-choice \
+                  --tool-call-parser kimi_k3 \
+                  --reasoning-parser kimi_k3 \
+                  --kv-transfer-config '{"kv_connector":"MultiConnector","kv_role":"kv_both","kv_connector_extra_config":{"connectors":[{"kv_connector":"NixlConnector","kv_role":"kv_consumer","kv_load_failure_policy":"fail"},{"kv_connector":"MooncakeStoreConnector","kv_role":"kv_both","kv_connector_extra_config":{"load_async":true,"lookup_async":true}}]}}'
+            env:
+              - name: HF_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: llm-d-hf-token
+                    key: HF_TOKEN
+              - name: HF_HOME
+                value: /mnt/hf-cache
+              - name: VLLM_KIMI_K3_SHARD_SP_SHARED_EXPERT
+                value: "1"
+              - name: VLLM_SSM_CONV_STATE_LAYOUT
+                value: "DS"
+              - name: VLLM_ENGINE_READY_TIMEOUT_S
+                value: "3600"
+              - name: VLLM_USE_V2_MODEL_RUNNER
+                value: "1"
+              - name: VLLM_USE_RUST_FRONTEND
+                value: "1"
+              - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.podIP
+              - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
+                value: "120"
+              - name: VLLM_LOGGING_LEVEL
+                value: DEBUG
+            ports:
+              - containerPort: 8200
+                name: vllm
+                protocol: TCP
+              - containerPort: 5600
+                name: nixl
+                protocol: TCP
+            startupProbe:
+              httpGet:
+                path: /health
+                port: vllm
+              initialDelaySeconds: 30
+              periodSeconds: 30
+              timeoutSeconds: 5
+              failureThreshold: 120
+            livenessProbe:
+              httpGet:
+                path: /health
+                port: vllm
+              periodSeconds: 30
+              timeoutSeconds: 5
+              failureThreshold: 3
+            readinessProbe:
+              httpGet:
+                path: /health
+                port: vllm
+              periodSeconds: 10
+              timeoutSeconds: 5
+              failureThreshold: 3
+            resources:
+              limits:
+                cpu: 64
+                memory: 1500Gi
+                nvidia.com/gpu: "8"
+              requests:
+                cpu: 64
+                memory: 1500Gi
+                nvidia.com/gpu: "8"
+            volumeMounts:
+              - name: dshm
+                mountPath: /dev/shm
+              - name: jit-cache
+                mountPath: /var/cache/vllm
+              - name: hf-cache
+                mountPath: /mnt/hf-cache

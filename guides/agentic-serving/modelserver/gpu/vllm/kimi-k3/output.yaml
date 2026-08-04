@@ -1,0 +1,373 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    llm-d.ai/accelerator-variant: gpu
+    llm-d.ai/accelerator-vendor: nvidia
+    llm-d.ai/guide: wide-ep-lws
+    llm-d.ai/model: Kimi-K3
+  name: kimi-k3
+---
+apiVersion: v1
+data:
+  mooncake_config.json: |
+    {
+      "mode": "embedded",
+      "metadata_server": "P2PHANDSHAKE",
+      "master_server_address": "mooncake-master-store.mooncake.svc.cluster.local:50051",
+      "global_segment_size": "80GB",
+      "local_buffer_size": "4GB",
+      "protocol": "rdma",
+      "device_name": "",
+      "enable_offload": false
+    }
+kind: ConfigMap
+metadata:
+  name: mooncake-kimi-k3-config
+---
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  labels:
+    llm-d.ai/accelerator-variant: gpu
+    llm-d.ai/accelerator-vendor: nvidia
+    llm-d.ai/guide: wide-ep-lws
+    llm-d.ai/model: Kimi-K3
+    llm-d.ai/role: decode
+  name: wide-ep-lws-nvidia-gpu-vllm-kimi-k3-decode
+spec:
+  leaderWorkerTemplate:
+    size: 2
+    workerTemplate:
+      metadata:
+        labels:
+          llm-d.ai/accelerator-variant: gpu
+          llm-d.ai/accelerator-vendor: nvidia
+          llm-d.ai/guide: wide-ep-lws
+          llm-d.ai/inference-serving: "true"
+          llm-d.ai/model: Kimi-K3
+          llm-d.ai/role: decode
+      spec:
+        containers:
+        - args:
+          - |-
+            find /dev/shm -type f -delete
+
+            exec vllm serve moonshotai/Kimi-K3 \
+              --trust-remote-code \
+              --port 8200 \
+              --disable-access-log-for-endpoints=/health,/metrics \
+              --compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}' \
+              --tensor-parallel-size 16 \
+              --enable-expert-parallel \
+              --nnodes ${LWS_GROUP_SIZE} \
+              --node-rank ${LWS_WORKER_INDEX:-0} \
+              --no-enable-prefix-caching \
+              --no-disable-hybrid-kv-cache-manager \
+              --gpu-memory-utilization 0.97 \
+              --max-num-seqs 5 \
+              --max-model-len ${MAX_MODEL_LEN:-32768} \
+              --moe-backend marlin \
+              --disable-custom-all-reduce \
+              --no-enable-flashinfer-autotune \
+              --max-num-batched-tokens 4096 \
+              --attention-backend FLASHMLA \
+              --enable-auto-tool-choice \
+              --tool-call-parser kimi_k3 \
+              --reasoning-parser kimi_k3 \
+              --speculative-config '{"model":"Inferact/Kimi-K3-DSpark","num_speculative_tokens":7,"method":"dspark","attention_backend":"FLASHINFER_MLA","draft_sample_method":"probabilistic","rejection_sample_method":"block"}' \
+              --kv-transfer-config '{"kv_connector":"MultiConnector","kv_role":"kv_both","kv_connector_extra_config":{"connectors":[{"kv_connector":"NixlConnector","kv_role":"kv_consumer","kv_load_failure_policy":"fail"},{"kv_connector":"MooncakeStoreConnector","kv_role":"kv_both","kv_connector_extra_config":{"load_async":true,"lookup_async":true}}]}}'
+          command:
+          - /bin/bash
+          - -c
+          env:
+          - name: HF_TOKEN
+            valueFrom:
+              secretKeyRef:
+                key: HF_TOKEN
+                name: llm-d-hf-token
+          - name: HF_HOME
+            value: /mnt/hf-cache
+          - name: VLLM_SSM_CONV_STATE_LAYOUT
+            value: DS
+          - name: VLLM_ENGINE_READY_TIMEOUT_S
+            value: "3600"
+          - name: VLLM_USE_V2_MODEL_RUNNER
+            value: "1"
+          - name: VLLM_USE_RUST_FRONTEND
+            value: "1"
+          - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
+            value: "120"
+          - name: NCCL_IB_HCA
+            value: ibp
+          - name: NVSHMEM_HCA_PREFIX
+            value: ibp
+          - name: MOONCAKE_CONFIG_PATH
+            value: /etc/mooncake/mooncake_config.json
+          - name: PYTHONHASHSEED
+            value: "0"
+          image: vllm/vllm-openai:nightly-5e35a6f4f9bbc217c599692157ca985c894373f7
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: vllm
+            periodSeconds: 30
+            timeoutSeconds: 5
+          name: vllm
+          ports:
+          - containerPort: 8200
+            name: vllm
+            protocol: TCP
+          - containerPort: 5600
+            name: nixl
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: vllm
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            limits:
+              cpu: 64
+              memory: 1500Gi
+              nvidia.com/gpu: "8"
+              rdma/ib: "8"
+            requests:
+              cpu: 64
+              memory: 1500Gi
+              nvidia.com/gpu: "8"
+              rdma/ib: "8"
+          securityContext:
+            capabilities:
+              add:
+              - IPC_LOCK
+              - SYS_RAWIO
+            runAsGroup: 0
+            runAsUser: 0
+          startupProbe:
+            failureThreshold: 120
+            httpGet:
+              path: /health
+              port: vllm
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+          volumeMounts:
+          - mountPath: /dev/shm
+            name: dshm
+          - mountPath: /var/cache/vllm
+            name: jit-cache
+          - mountPath: /mnt/hf-cache
+            name: hf-cache
+          - mountPath: /etc/mooncake
+            name: mooncake-config
+            readOnly: true
+        initContainers:
+        - args:
+          - --port=8000
+          - --vllm-port=8200
+          - --kv-connector=nixlv2
+          - --zap-log-level=1
+          - --secure-proxy=false
+          image: ghcr.io/llm-d/llm-d-router-disagg-sidecar:main
+          imagePullPolicy: Always
+          name: routing-proxy
+          ports:
+          - containerPort: 8000
+            name: http
+            protocol: TCP
+          restartPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+        serviceAccountName: kimi-k3
+        volumes:
+        - emptyDir:
+            medium: Memory
+            sizeLimit: 256Gi
+          name: dshm
+        - hostPath:
+            path: /mnt/local/hf-cache
+            type: DirectoryOrCreate
+          name: hf-cache
+        - hostPath:
+            path: /mnt/local/jit-cache
+            type: DirectoryOrCreate
+          name: jit-cache
+        - configMap:
+            name: mooncake-kimi-k3-config
+          name: mooncake-config
+  replicas: 1
+---
+apiVersion: leaderworkerset.x-k8s.io/v1
+kind: LeaderWorkerSet
+metadata:
+  labels:
+    llm-d.ai/accelerator-variant: gpu
+    llm-d.ai/accelerator-vendor: nvidia
+    llm-d.ai/guide: wide-ep-lws
+    llm-d.ai/model: Kimi-K3
+    llm-d.ai/role: prefill
+  name: wide-ep-lws-nvidia-gpu-vllm-kimi-k3-prefill
+spec:
+  leaderWorkerTemplate:
+    size: 2
+    workerTemplate:
+      metadata:
+        labels:
+          llm-d.ai/accelerator-variant: gpu
+          llm-d.ai/accelerator-vendor: nvidia
+          llm-d.ai/guide: wide-ep-lws
+          llm-d.ai/inference-serving: "true"
+          llm-d.ai/model: Kimi-K3
+          llm-d.ai/role: prefill
+      spec:
+        containers:
+        - args:
+          - |-
+            find /dev/shm -type f -delete
+
+            exec vllm serve moonshotai/Kimi-K3 \
+              --trust-remote-code \
+              --port 8000 \
+              --disable-access-log-for-endpoints=/health,/metrics \
+              --tensor-parallel-size 16 \
+              --enable-expert-parallel \
+              --nnodes ${LWS_GROUP_SIZE} \
+              --node-rank ${LWS_WORKER_INDEX:-0} \
+              --enforce-eager \
+              --no-disable-hybrid-kv-cache-manager \
+              --gpu-memory-utilization 0.97 \
+              --max-num-seqs 5 \
+              --max-model-len ${MAX_MODEL_LEN:-32768} \
+              --moe-backend marlin \
+              --disable-custom-all-reduce \
+              --no-enable-flashinfer-autotune \
+              --max-num-batched-tokens 4096 \
+              --attention-backend FLASHMLA \
+              --enable-auto-tool-choice \
+              --tool-call-parser kimi_k3 \
+              --reasoning-parser kimi_k3 \
+              --speculative-config '{"model":"Inferact/Kimi-K3-DSpark","num_speculative_tokens":7,"method":"dspark","attention_backend":"FLASHINFER_MLA","draft_sample_method":"probabilistic","rejection_sample_method":"block"}' \
+              --kv-transfer-config '{"kv_connector":"MultiConnector","kv_role":"kv_both","kv_connector_extra_config":{"connectors":[{"kv_connector":"NixlConnector","kv_role":"kv_producer","kv_load_failure_policy":"fail"},{"kv_connector":"MooncakeStoreConnector","kv_role":"kv_both","kv_connector_extra_config":{"load_async":true,"lookup_async":true}}]}}'
+          command:
+          - /bin/bash
+          - -c
+          env:
+          - name: HF_TOKEN
+            valueFrom:
+              secretKeyRef:
+                key: HF_TOKEN
+                name: llm-d-hf-token
+          - name: VLLM_SSM_CONV_STATE_LAYOUT
+            value: DS
+          - name: VLLM_ENGINE_READY_TIMEOUT_S
+            value: "3600"
+          - name: VLLM_USE_V2_MODEL_RUNNER
+            value: "1"
+          - name: VLLM_USE_RUST_FRONTEND
+            value: "1"
+          - name: GLOO_SOCKET_IFNAME
+            value: eth0
+          - name: NCCL_SOCKET_IFNAME
+            value: eth0
+          - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: VLLM_HTTP_TIMEOUT_KEEP_ALIVE
+            value: "120"
+          - name: NCCL_IB_HCA
+            value: ibp
+          - name: NVSHMEM_HCA_PREFIX
+            value: ibp
+          - name: MOONCAKE_CONFIG_PATH
+            value: /etc/mooncake/mooncake_config.json
+          - name: PYTHONHASHSEED
+            value: "0"
+          image: vllm/vllm-openai:nightly-5e35a6f4f9bbc217c599692157ca985c894373f7
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: modelserver
+            periodSeconds: 30
+            timeoutSeconds: 5
+          name: vllm
+          ports:
+          - containerPort: 8000
+            name: modelserver
+            protocol: TCP
+          - containerPort: 5600
+            name: nixl
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: modelserver
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            limits:
+              cpu: 64
+              memory: 1500Gi
+              nvidia.com/gpu: "8"
+              rdma/ib: "8"
+            requests:
+              cpu: 64
+              memory: 1500Gi
+              nvidia.com/gpu: "8"
+              rdma/ib: "8"
+          securityContext:
+            capabilities:
+              add:
+              - IPC_LOCK
+              - SYS_RAWIO
+            runAsGroup: 0
+            runAsUser: 0
+          startupProbe:
+            failureThreshold: 120
+            httpGet:
+              path: /health
+              port: modelserver
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+          volumeMounts:
+          - mountPath: /dev/shm
+            name: dshm
+          - mountPath: /var/cache/vllm
+            name: jit-cache
+          - mountPath: /mnt/hf-cache
+            name: hf-cache
+          - mountPath: /etc/mooncake
+            name: mooncake-config
+            readOnly: true
+        serviceAccountName: kimi-k3
+        volumes:
+        - emptyDir:
+            medium: Memory
+            sizeLimit: 256Gi
+          name: dshm
+        - hostPath:
+            path: /mnt/local/hf-cache
+            type: DirectoryOrCreate
+          name: hf-cache
+        - hostPath:
+            path: /mnt/local/jit-cache
+            type: DirectoryOrCreate
+          name: jit-cache
+        - configMap:
+            name: mooncake-kimi-k3-config
+          name: mooncake-config
+  replicas: 3

@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# Deploys the mooncake-kimi-k3-config ConfigMap with default embedded-mode RDMA
+# settings. Adjust device_name or protocol for your cluster's RDMA configuration.
+resources:
+  - configmap.yaml

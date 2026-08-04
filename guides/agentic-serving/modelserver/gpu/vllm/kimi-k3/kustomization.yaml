@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Recommended agentic-serving deployment of Kimi-K3 on H200: the wide-ep-lws
+# p3w2d1w2 topology (3 TP16 prefill replicas + 1 TP16 decode replica -> 8 nodes /
+# 64 GPUs) with MooncakeStore-backed tiered prefix caching and DSpark speculative
+# decoding. Alternative topologies: guides/wide-ep-lws/modelserver/gpu/vllm-kimi-k3/.
+resources:
+  - ../../../../../wide-ep-lws/modelserver/gpu/vllm-kimi-k3/deployments/p3w2d1w2
+components:
+  - ../../../../../wide-ep-lws/modelserver/gpu/vllm-kimi-k3/components/mooncake/vllm
+  - ../../../../mooncake/kimi-k3

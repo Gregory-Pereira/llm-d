@@ -1,0 +1,49 @@
+## Kimi-K3 agentic-serving router overrides.
+## Layer on top of: recipes/router/base.values.yaml
+##
+## Kimi-K3 uses TP=16 across 2 nodes (no data parallelism), so routing targets
+## a single port per replica — no multi-port DP-aware routing needed. P/D
+## disaggregation uses separate prefill and decode scheduling profiles with
+## prefix-cache and load-aware scoring.
+
+router:
+  extraServicePorts:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8081
+
+  epp:
+    pluginsConfigFile: "kimi-k3-plugins.yaml"
+    pluginsCustomConfig:
+      kimi-k3-plugins.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        plugins:
+        - type: disagg-headers-handler
+        - type: always-disagg-pd-decider
+        - type: disagg-profile-handler
+          parameters:
+            deciderPluginName: always-disagg-pd-decider
+        - type: prefill-filter
+        - type: decode-filter
+        - type: prefix-cache-scorer
+        - type: active-request-scorer
+        - type: token-load-scorer
+        schedulingProfiles:
+        - name: prefill
+          plugins:
+          - pluginRef: prefill-filter
+          - pluginRef: prefix-cache-scorer
+            weight: 3
+          - pluginRef: token-load-scorer
+            weight: 2
+        - name: decode
+          plugins:
+          - pluginRef: decode-filter
+          - pluginRef: active-request-scorer
+
+  modelServers:
+    matchLabels:
+      llm-d.ai/guide: "wide-ep-lws"
+      llm-d.ai/model: "Kimi-K3"
