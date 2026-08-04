@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: download-kimi-k3
+  labels:
+    app: download-kimi-k3
+spec:
+  selector:
+    matchLabels:
+      app: download-kimi-k3
+  template:
+    metadata:
+      labels:
+        app: download-kimi-k3
+    spec:
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 0
+      nodeSelector:
+        nvidia.com/gpu.product: NVIDIA-H200
+      containers:
+        - name: download
+          image: vllm/vllm-openai:nightly-5e35a6f4f9bbc217c599692157ca985c894373f7
+          command:
+            - /bin/bash
+            - -c
+          args:
+            - |-
+              set -e
+              echo "Downloading moonshotai/Kimi-K3 to /mnt/hf-cache ..."
+              hf download moonshotai/Kimi-K3
+              echo "Downloading Inferact/Kimi-K3-DSpark to /mnt/hf-cache ..."
+              hf download Inferact/Kimi-K3-DSpark
+              echo "Downloads complete. Sleeping to keep DaemonSet alive for inspection."
+              sleep infinity
+          env:
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: llm-d-hf-token
+                  key: HF_TOKEN
+            - name: HF_HOME
+              value: /mnt/hf-cache
+          resources:
+            requests:
+              cpu: 4
+              memory: 16Gi
+            limits:
+              cpu: 8
+              memory: 32Gi
+          volumeMounts:
+            - name: hf-cache
+              mountPath: /mnt/hf-cache
+      volumes:
+        - name: hf-cache
+          hostPath:
+            path: /mnt/local/hf-cache
+            type: DirectoryOrCreate
