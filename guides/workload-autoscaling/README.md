@@ -37,7 +37,7 @@ See the [Prometheus Adapter guide](./promadapter.md) for installation instructio
 
 ## Paths
 
-### KEDA + EPP Metrics
+### KEDA + EPP Metrics (Recommended)
 
 #### Queue-based Autoscaling
 
@@ -60,7 +60,7 @@ The [Saturation-based Autoscaling](./README.epp-keda-saturation.md) path has KED
 
 A specialization of this path drives the HPA from the pool's **latency** rather than its queue depth. The [SLO-Aware Autoscaling](./README.slo-aware.md) sub-path scales directly against latency SLOs, using the EPP's **estimated** TTFT/TPOT as the signal — either its ML-predicted latency (from the online-trained predictor) or the actual measured latency aggregated in real time when the predictor isn't enabled. A Prometheus recording rule turns that estimate into a single saturation ratio (latency ÷ SLO), and a KEDA `ScaledObject` with an [expr-lang](https://expr-lang.org/) formula computes the desired replica count and drives a standard HPA — no custom controller. With the ML predictor, capacity is added as pressure builds rather than after the queue has already formed. Best when clients express per-request latency SLOs and you want scaling driven by the objective itself rather than a proxy metric.
 
-### KEDA + WVA Metrics
+### KEDA + WVA Metrics (Legacy)
 
 The [Workload Variant Autoscaler (WVA)](./README.wva.md) path integrates KEDA with the aggregated signal emitted by WVA: `wva_desired_replicas`.
 
@@ -74,7 +74,7 @@ WVA is designed for operators running multiple variants of the same model across
 | **Scaling signal** | EPP metrics such as queue depth and running request count | normalized pool saturation level (0.0–1.0+) and running request count | EPP estimated TTFT/TPOT (ML-predicted, or measured) vs the SLO | KV cache utilization, queue depth, performance budgets |
 | **Cost optimization** | None — scales based on load signals only | None — scales based on load signals only | Minimizes replicas needed to meet the SLO | Optimizes across variants by preferring lower-cost hardware |
 | **Additional components** | KEDA and Prometheus only | KEDA and Prometheus only | KEDA + one Prometheus recording rule | KEDA and WVA controller |
-| **Scale to zero** | Supported | Supported | Supported (via KEDA) | Supported |
+| **Scale to zero** | Supported | Supported (Needs Validation) | Supported (via KEDA) | Supported |
 
 ## Observability & Troubleshooting
 
