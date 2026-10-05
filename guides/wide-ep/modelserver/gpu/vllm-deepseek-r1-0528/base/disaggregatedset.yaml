@@ -72,6 +72,10 @@ spec:
                 # https://github.com/llm-d/llm-d/issues/352
                 find /dev/shm -type f -delete
 
+                # Apply vllm-project/vllm#47884: fix device_id arg in get_device_capability()
+                sed -i 's/current_platform\.get_device_capability(device_id=y\.device\.index)/current_platform.get_device_capability()/g' \
+                  "$(python3 -c 'import vllm; import os; print(os.path.join(os.path.dirname(vllm.__file__), "model_executor/layers/fused_moe/experts/batched_deep_gemm_moe.py"))')"
+
                 #################
                 # RUN vLLM prefill workers via DP Supervisor
                 # The supervisor automatically assigns CUDA_VISIBLE_DEVICES and
@@ -320,6 +324,10 @@ spec:
                 # Clear /dev/shm on start to prevent running out of space when crashes occur
                 # https://github.com/llm-d/llm-d/issues/352
                 find /dev/shm -type f -delete
+
+                # Apply vllm-project/vllm#47884: fix device_id arg in get_device_capability()
+                sed -i 's/current_platform\.get_device_capability(device_id=y\.device\.index)/current_platform.get_device_capability()/g' \
+                  "$(python3 -c 'import vllm; import os; print(os.path.join(os.path.dirname(vllm.__file__), "model_executor/layers/fused_moe/experts/batched_deep_gemm_moe.py"))')"
 
                 #################
                 # RUN vLLM decode workers via DP Supervisor
